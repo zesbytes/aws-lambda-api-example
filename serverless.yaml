@@ -1,0 +1,129 @@
+service:
+  name: aws-lambda-api-example
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+frameworkVersion: '1.73.1'
+
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    keepOutputDirectory: true
+    excludeFiles: ./**/*.test.js
+    # using layers istead of this
+    # includeModules:
+    #   forceInclude:
+    #     - source-map-support
+
+    # following not supported yet. see https://github.com/serverless-heaven/serverless-webpack/issues/397 for progress
+    # entry:
+    #   pre:
+    #     - source-map-support.js
+
+plugins:
+  - serverless-webpack
+  - serverless-plugin-layer-manager
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  #variableSyntax: "\\${{([ ~:a-zA-Z0-9._@\\'\",\\-\\/\\(\\)]+?)}}" # notice the double quotes for yaml to ignore the escape characters!
+
+  stage: ${opt:stage, 'dev'}
+  region: ap-southeast-2
+  tags:
+    type: example
+  
+  memorySize: 128
+  timeout: 5
+  apiGateway:
+    minimumCompressionSize: 1024 # Enable gzip compression for responses > 1 KB
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+
+  # role: iamRoleLambdaExecution
+  # iamRoleStatements:
+  #   - Effect: Allow
+  #     Action: sts:AssumeRole
+  #     Resource: apigateway.amazonaws.com
+
+layers:
+  sourceMap:
+    path: layers/sourcemap
+    name: aws-sourcemap-layer
+    retain: false
+
+package:
+  individually: true
+
+functions:
+  # - ${file(./agent-functions.yml)}
+  items_get:
+    handler: src/handlers/items/get.handler
+    layers:
+      - {Ref: SourceMapLambdaLayer}
+    memorySize: 128
+    events:
+      - http:
+          path: items/{id}
+          method: get
+  items_list:
+    handler: src/handlers/items/list.handler
+    layers:
+       - {Ref: SourceMapLambdaLayer}
+    memorySize: 128
+    events:
+      - http:
+          path: items
+          method: get
+          description: retrieve all items
+          request:
+            parameters:
+              querystrings:
+                # have to manually associate a validator to inforce validation. see Resources at end of file
+                page: true
+                size: false
+  items_create:
+    handler: src/handlers/items/create.handler
+    layers:
+       - {Ref: SourceMapLambdaLayer}
+    memorySize: 128
+    events:
+      - http:
+          path: items
+          method: post
+          request:
+            schema:
+              # causes creation of a validator in generated cloud formation file
+              # also associates validator with this API operation so validation occurs by default
+              application/json: ${file(src/schemas/create-item.json)}
+  agents_query:
+    handler: src/handlers/agents/query-api.handler
+    layers:
+      - {Ref: SourceMapLambdaLayer}
+    memorySize: 128
+    events:
+      - http:
+          path: agents
+          method: any
+      - http:
+          path: agents/{proxy+}
+          method: any
+
+resources:
+  Resources:     
+    RequestValidatorParamsOnly:
+      Type: AWS::ApiGateway::RequestValidator
+      Properties:
+        Name: params-only
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ValidateRequestBody: false
+        ValidateRequestParameters: true
+    # use serverless-reqvalidator-plugin instead?
+    ApiGatewayMethodItemsGet:
+      Properties:
+        RequestValidatorId:
+          Ref: RequestValidatorParamsOnly        

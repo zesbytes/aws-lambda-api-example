@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "ES6",
+    "target": "es2018", // ESNext doesn't work with webpack for evlis operator
+    "removeComments": true,
+    "moduleResolution": "node", // how to find modules - we use node_modules folder which is node way
+    "strict": true, 
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "allowJs": true,
+    "baseUrl": "./src"
+  
+  },
+  "include": ["src"]
+}
